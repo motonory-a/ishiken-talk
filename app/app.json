@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "いしけん！トーク",
+    "slug": "ishiken-talk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "jp.co.ryuride.ishikentalk"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "jp.co.ryuride.ishikentalk"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
