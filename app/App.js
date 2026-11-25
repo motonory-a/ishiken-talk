@@ -149,6 +149,24 @@ function Pick({ status, oshi, onBack, onChoose }) {
   );
 }
 
+// 声で入力（Safari などブラウザの音声認識。使えない環境ではボタンを出さない）
+const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+function useVoiceInput(onText) {
+  const [on, setOn] = useState(false);
+  const ref = useRef(null);
+  const start = () => {
+    if (!SR || on) return;
+    try {
+      const r = new SR(); r.lang = "ja-JP"; r.interimResults = false; r.continuous = false;
+      r.onresult = e => { const t = Array.from(e.results).map(x => x[0].transcript).join(""); if (t) onText(t); };
+      r.onend = () => setOn(false); r.onerror = () => setOn(false);
+      ref.current = r; r.start(); setOn(true);
+    } catch { setOn(false); }
+  };
+  const stop = () => { try { ref.current && ref.current.stop(); } catch {} setOn(false); };
+  return { can: !!SR, on, start, stop };
+}
+
 function Chat({ userId, user, char: c, status, setStatus, onBack }) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
@@ -156,6 +174,7 @@ function Chat({ userId, user, char: c, status, setStatus, onBack }) {
   const [info, setInfo] = useState("");
   const listRef = useRef(null);
   const key = `talk:${c.n}`;
+  const voice = useVoiceInput(t => setText(prev => (prev ? prev + " " : "") + t));
 
   useEffect(() => { (async () => setMsgs(await store.get(key, [{ role: "assistant", content: `${c.name}です。来てくれてありがとう！` }])))(); }, [c.n]);
   useEffect(() => { store.set(key, msgs.slice(-60)); setTimeout(() => listRef.current?.scrollToEnd?.({ animated: true }), 50); }, [msgs]);
@@ -192,7 +211,8 @@ function Chat({ userId, user, char: c, status, setStatus, onBack }) {
       {busy ? <Text style={s.typing}>{c.name}が入力中…</Text> : null}
       {info ? <Text style={s.notice}>{info}</Text> : null}
       <View style={s.inputRow}>
-        <TextInput value={text} onChangeText={setText} placeholder="メッセージ" style={s.input} maxLength={400} multiline placeholderTextColor={C.sub} />
+        {voice.can ? <Pressable onPress={voice.on ? voice.stop : voice.start} style={[s.micBtn, voice.on && { backgroundColor: C.pink }]} accessibilityLabel={voice.on ? "声の入力を止める" : "声で入力する"}><Text style={[s.micTx, voice.on && { color: "#fff" }]}>{voice.on ? "■" : "🎤"}</Text></Pressable> : null}
+        <TextInput value={text} onChangeText={setText} placeholder={voice.on ? "聞いています…" : "メッセージ"} style={s.input} maxLength={400} multiline placeholderTextColor={C.sub} />
         <Pressable style={[s.sendBtn, (!text.trim() || busy) && { opacity: 0.4 }]} onPress={go} accessibilityLabel="送る"><Text style={s.btnTx}>送る</Text></Pressable>
       </View>
       <Text style={s.noteSmall}>気になる返事は長押しで報告できます</Text>
@@ -243,5 +263,7 @@ const s = StyleSheet.create({
   chip: { paddingHorizontal: 14, minHeight: 40, justifyContent: "center", borderRadius: 999, borderWidth: 1.5, borderColor: C.pri },
   chipOn: { backgroundColor: C.pri },
   chipTx: { color: C.pri, fontWeight: "800" },
+  micBtn: { width: 44, minHeight: 44, borderRadius: 22, borderWidth: 1.5, borderColor: C.pri, alignItems: "center", justifyContent: "center" },
+  micTx: { fontSize: 18, color: C.pri },
   sendBtn: { backgroundColor: C.pink, borderRadius: 22, paddingHorizontal: 18, justifyContent: "center", minHeight: 44 }
 });
