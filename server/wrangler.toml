@@ -20,5 +20,3 @@ directory = "./public"
 [vars]
 # 部員パスでない人が声を試せる回数（1日）
 TTS_TRIAL = "3"
-# 声選び用の一時的な窓口（決まったら消す）
-DEV_TOOLS = "1"

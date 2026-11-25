@@ -1,5 +1,6 @@
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import Purchases from "react-native-purchases";
+import * as Notifications from "expo-notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -38,6 +39,38 @@ async function send(userId, charNo, messages, user) {
   demo.oshi = demo.oshi || charNo; demo.used++;
   const c = BY.get(charNo);
   return { ok: true, reply: `（お試しモード）${callOf(user)}、${c.name}だよ。サーバーにつなぐと、ここに本物の返事が届くよ。`, status: { left: 10 - demo.used, limit: 10, pass: false, oshi: demo.oshi } };
+}
+
+// 朝7:30の「おはよう」通知（スマホの中で予約する。サーバーは使わない）
+const CAN_NOTIFY = Platform.OS !== "web";
+const MORNING = [
+  "{c}、おはよう！今日も部室で待ってるね",
+  "おはよう、{c}。よく眠れた？",
+  "{c}、朝だよ〜。今日の予定を教えてほしいな",
+  "おはよう！今日の{c}に合いそうな石、考えておくね",
+  "{c}、おはようございます。無理しすぎないでね",
+  "おはよう、{c}。窓の外、どんな空？",
+  "{c}、起きてる？ちょっとだけ話そうよ",
+  "おはよう！昨日の続き、聞かせてくれる？",
+  "{c}、今日もいってらっしゃい。帰ってきたらまた話そうね",
+  "おはよう、{c}。朝ごはん、ちゃんと食べた？"
+];
+if (CAN_NOTIFY) Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
+async function scheduleMorning(on, char, user) {
+  if (!CAN_NOTIFY) return false;
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  if (!on || !char) return true;
+  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("morning", { name: "朝のおはよう", importance: Notifications.AndroidImportance.DEFAULT });
+  const perm = await Notifications.requestPermissionsAsync();
+  if (!perm.granted && perm.status !== "granted") return false;
+  const call = callOf(user); const now = new Date();
+  for (let d = 0; d < 14; d++) {          // 2週間分を毎日ちがう言葉で予約（アプリを開くたびに予約し直す）
+    const t = new Date(now); t.setDate(now.getDate() + d); t.setHours(7, 30, 0, 0);
+    if (t <= now) continue;
+    const line = MORNING[(t.getDate() + char.n) % MORNING.length].replace("{c}", call);
+    await Notifications.scheduleNotificationAsync({ content: { title: char.name, body: line, data: { charNo: char.n } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId: "morning" } });
+  }
+  return true;
 }
 
 // 部員パス（RevenueCat）。公開キーはアプリに入れてよいキー（goog_… / appl_…）。秘密キーはサーバーだけが持つ
@@ -93,11 +126,27 @@ export default function App() {
   const choose = async n => { setOshi(n); await store.set("oshi", n); setTalk(n); setScreen("chat"); };
 
   const pass = usePass(userId, setStatus);
+  const [morning, setMorning] = useState(false);
+  useEffect(() => { (async () => setMorning(await store.get("morning", false)))(); }, []);
+  useEffect(() => { if (oshi) scheduleMorning(morning, BY.get(oshi), user).catch(() => {}); }, [morning, oshi, user.name, user.style]);
+  useEffect(() => {
+    if (!CAN_NOTIFY) return;
+    const sub = Notifications.addNotificationResponseReceivedListener(r => {
+      const n = r.notification.request.content.data?.charNo;
+      if (n && BY.get(n)) { setTalk(n); setScreen("chat"); }
+    });
+    return () => sub.remove();
+  }, []);
+  const toggleMorning = async () => {
+    const next = !morning;
+    const ok = await scheduleMorning(next, oshi && BY.get(oshi), user).catch(() => false);
+    const v = next && ok; setMorning(v); await store.set("morning", v);
+  };
   if (!userId) return <SafeAreaView style={s.wrap} />;
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar style="dark" />
-      {screen === "home" && <Home userId={userId} pass={pass} oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
+      {screen === "home" && <Home userId={userId} pass={pass} morning={morning} onMorning={toggleMorning} oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
       {screen === "pick" && <Pick status={status} oshi={oshi} onBack={() => setScreen("home")} onChoose={choose} />}
       {screen === "chat" && talk && <Chat userId={userId} user={user} char={BY.get(talk)} status={status} setStatus={setStatus} onBack={() => setScreen("home")} />}
     </SafeAreaView>
@@ -114,7 +163,7 @@ function Header({ title, onBack }) {
   );
 }
 
-function Home({ userId, pass, oshi, status, user, onUser, onTalk, onPick }) {
+function Home({ userId, pass, morning, onMorning, oshi, status, user, onUser, onTalk, onPick }) {
   const c = oshi && BY.get(oshi);
   return (
     <ScrollView contentContainerStyle={s.pad}>
@@ -145,6 +194,14 @@ function Home({ userId, pass, oshi, status, user, onUser, onTalk, onPick }) {
           </Pressable>))}</View>
         <Text style={s.left}>部員から「{callOf(user)}」と呼ばれます</Text>
       </View>
+      {CAN_NOTIFY && c ? (
+        <View style={s.card}>
+          <Text style={s.kicker}>朝のおはよう</Text>
+          <Text style={s.body}>毎朝7:30に、{c.name}から「おはよう」が届きます。</Text>
+          <Pressable onPress={onMorning} style={[s.btn, morning ? s.btnGhost : { backgroundColor: C.pink }]} accessibilityRole="switch" accessibilityState={{ checked: morning }}>
+            <Text style={[s.btnTx, morning && { color: C.pri }]}>{morning ? "受け取っています（押すと止める）" : "受け取る"}</Text>
+          </Pressable>
+        </View>) : null}
       <View style={s.card}>
         <Text style={s.kicker}>部員パス{pass.price ? `（${pass.price}／月）` : "（月額）"}</Text>
         {status.pass ? (<>

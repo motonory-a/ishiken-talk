@@ -206,31 +206,6 @@ async function tts(env, body) {
   return new Response(res.body, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "access-control-expose-headers": "x-tts-left", "x-tts-left": String(left) } });
 }
 
-// 声選び用の一時的な窓口（DEV_TOOLS="1" のときだけ。声が決まったら消す）
-async function devTools(env, url) {
-  if (env.DEV_TOOLS !== "1" || !env.ELEVENLABS_API_KEY) return json({ error: "not_found" }, 404);
-  const h = { "xi-api-key": env.ELEVENLABS_API_KEY };
-  if (url.pathname === "/dev/voices") {
-    const q = new URLSearchParams({ page_size: "100", language: "ja", gender: "female", sort: "cloned_by_count" });
-    if (url.searchParams.get("age")) q.set("age", url.searchParams.get("age"));
-    if (url.searchParams.get("search")) q.set("search", url.searchParams.get("search"));
-    const r = await fetch(`https://api.elevenlabs.io/v1/shared-voices?${q}`, { headers: h });
-    const d = await r.json();
-    return json({ code: r.status, voices: (d.voices || []).map(v => ({ id: v.voice_id, owner: v.public_owner_id, name: v.name, age: v.age, accent: v.accent, use: v.use_case, desc: (v.description || "").slice(0, 160), preview: v.preview_url, free: v.free_users_allowed, used: v.cloned_by_count })), detail: d.detail });
-  }
-  if (url.pathname === "/dev/say") {
-    const k = `devsay:${jstDay()}`; const n = Number((await env.KV.get(k)) || 0);
-    if (n >= 60) return json({ error: "dev_limit" }, 429);
-    await env.KV.put(k, String(n + 1), { expirationTtl: 172800 });
-    const voice = (url.searchParams.get("voice") || "").replace(/[^A-Za-z0-9]/g, "");
-    const text = speakable(url.searchParams.get("text") || "先輩、おかえりなさい。今日はどんな石を見ますか？");
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_64`, { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ text, model_id: env.ELEVEN_MODEL || TTS_MODEL, language_code: "ja" }) });
-    if (!r.ok) return json({ error: "tts_error", code: r.status, body: (await r.text()).slice(0, 300) }, 502);
-    return new Response(r.body, { headers: { "content-type": "audio/mpeg" } });
-  }
-  return json({ error: "not_found" }, 404);
-}
-
 // 部員パスの状態を RevenueCat に直接確かめる（購入・復元の直後にアプリが呼ぶ）
 const ENTITLEMENT = "pass";
 async function sync(env, body) {
@@ -281,7 +256,6 @@ export default {
         const buf = await env.KV.get(`audio:${url.pathname.slice(3, 35)}`, "arrayBuffer");
         return buf ? new Response(buf, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "cache-control": "private, max-age=600" } }) : json({ error: "gone" }, 404);
       }
-      if (url.pathname.startsWith("/dev/")) return await devTools(env, url);
       if (url.pathname === "/health") return json({ ok: true, name: "ishiken-talk" });
       return json({ error: "not_found" }, 404);
     } catch (e) {
