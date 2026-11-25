@@ -15,19 +15,19 @@ const TTS_MODEL = "eleven_flash_v2_5";
 // 基本の6人の声（ElevenLabsの声ID）。KVの "voices" に {"1":"声ID",…,"default":"声ID"} を入れると差し替わる
 const VOICES = {
   1: "lhTvHflPVOqgSWyuWQry", // スイ：Hina（かわいく明るい）
-  2: "ngvNHfiCrXLPAHcTrZK1", // アメリア：Aki（低く落ち着いた）
+  2: "JTlYtJrcTzPC71hMLOxo", // アメリア：Yuki（落ち着いた10代の声）
   3: "hMK7c1GPJmptCzI4bQIu", // ロゼ：Sameno（甘くやわらかい）
   4: "oAlEJuW30knHWhA6cF0e", // トラナ：itsuki（ボーイッシュ）
-  5: "B8gJV1IhpuegLxdpXFOE", // ルチカ：Kuon（明るく華やか）
+  5: "8kgj5469z1URcH4MB2G4", // ルチカ：Sakuya（夢見がちで少しクール）
   6: "uYwU1hsbnP5viqq9qhob"  // ルリ：Irohauta（高めで弾む）
 };
 // ほかの363人は、日本人の若い女性の声12種から番号で割り当てる
 const VOICE_POOL = [...Object.values(VOICES),
   "6awt6FKyZGV0HyQEwisX", // Suzu
-  "JTlYtJrcTzPC71hMLOxo", // Yuki
+  "ngvNHfiCrXLPAHcTrZK1", // Aki
   "fUjY9K2nAIwlALOwSiwc", // Yui
   "OSwaPSNdfituxkWcjlkR", // Kano
-  "8kgj5469z1URcH4MB2G4", // Sakuya
+  "B8gJV1IhpuegLxdpXFOE", // Kuon
   "gARvXPexe5VF3cKZBian"  // Mitsuki
 ];
 const BY_NO = new Map(PERSONAS.map(p => [p.n, p]));
