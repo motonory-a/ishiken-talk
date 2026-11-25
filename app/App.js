@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import CHARS from "./src/chars";
 
 // 中継サーバーのアドレス。空のままだと「お試しモード」（AIを使わない仮の返事）で動く
-const API_URL = "";
+const API_URL = "https://ishiken-talk.motonory.workers.dev";
 const SITE = "https://motonory-a.github.io/ishiken369/";
 const LINE_URL = "https://lin.ee/zapyKLV";
 const BY = new Map(CHARS.map(c => [c.n, c]));
