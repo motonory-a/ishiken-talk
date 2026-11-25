@@ -63,7 +63,7 @@ export default function App() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar style="dark" />
-      {screen === "home" && <Home oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
+      {screen === "home" && <Home userId={userId} oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
       {screen === "pick" && <Pick status={status} oshi={oshi} onBack={() => setScreen("home")} onChoose={choose} />}
       {screen === "chat" && talk && <Chat userId={userId} user={user} char={BY.get(talk)} status={status} setStatus={setStatus} onBack={() => setScreen("home")} />}
     </SafeAreaView>
@@ -80,7 +80,7 @@ function Header({ title, onBack }) {
   );
 }
 
-function Home({ oshi, status, user, onUser, onTalk, onPick }) {
+function Home({ userId, oshi, status, user, onUser, onTalk, onPick }) {
   const c = oshi && BY.get(oshi);
   return (
     <ScrollView contentContainerStyle={s.pad}>
@@ -113,7 +113,7 @@ function Home({ oshi, status, user, onUser, onTalk, onPick }) {
       </View>
       <View style={s.card}>
         <Text style={s.kicker}>部員パス（月480円）</Text>
-        <Text style={s.body}>369人の誰とでも、1日300回まで話せます。</Text>
+        <Text style={s.body}>369人の誰とでも、1日300回まで話せます。キャラの声も毎日たっぷり聞けます。</Text>
         <Pressable style={[s.btn, s.btnGhost]} onPress={onPick}><Text style={[s.btnTx, { color: C.pri }]}>369人を見る</Text></Pressable>
         <Text style={s.note}>お支払いはストア公開のときにつなぎます。</Text>
       </View>
@@ -123,6 +123,11 @@ function Home({ oshi, status, user, onUser, onTalk, onPick }) {
         <Pressable style={[s.btn, s.btnGhost]} onPress={() => Linking.openURL(SITE)}><Text style={[s.btnTx, { color: C.pri }]}>いしけん！公式サイト</Text></Pressable>
       </View>
       <Text style={s.note}>登場人物はすべて架空の人物で、会話はAIが演じています。</Text>
+      <View style={s.legal}>
+        {[["プライバシーポリシー", "privacy"], ["利用規約", "terms"], ["特定商取引法に基づく表記", "tokushoho"]].map(([t, f]) => (
+          <Pressable key={f} onPress={() => Linking.openURL(`${SITE}talk/${f}.html`)} accessibilityRole="link"><Text style={s.legalTx}>{t}</Text></Pressable>))}
+      </View>
+      <Text style={s.idTx}>お問い合わせ用の番号：{userId ? userId.slice(-8) : "—"}</Text>
     </ScrollView>
   );
 }
@@ -272,6 +277,9 @@ const s = StyleSheet.create({
   btnTx: { color: "#fff", fontWeight: "800", fontSize: 16 },
   left: { textAlign: "center", color: C.sub, marginTop: 8 },
   note: { color: C.sub, fontSize: 12, textAlign: "center", marginTop: 10 },
+  legal: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 18 },
+  legalTx: { color: C.pri, fontSize: 12, textDecorationLine: "underline" },
+  idTx: { color: C.sub, fontSize: 11, textAlign: "center", marginTop: 8 },
   noteSmall: { color: C.sub, fontSize: 11, textAlign: "center", paddingBottom: 6 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.card },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
