@@ -41,7 +41,7 @@ async function send(userId, charNo, messages, user) {
 }
 
 // 部員パス（RevenueCat）。公開キーはアプリに入れてよいキー（goog_… / appl_…）。秘密キーはサーバーだけが持つ
-const RC_KEYS = { android: "", ios: "" };
+const RC_KEYS = { android: "goog_AOmtqvqndujoxREUGdoSARJPZME", ios: "" };
 const RC_KEY = RC_KEYS[Platform.OS] || "";
 const MANAGE_URL = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
 function usePass(userId, setStatus) {
