@@ -8,6 +8,20 @@ const LIMIT_FREE = 10;      // 無料：1日10回
 const LIMIT_PASS = 300;     // 部員パス：1日300回
 const MAX_HISTORY = 20;     // AIに渡す直近の会話の数
 const MAX_USER_CHARS = 400; // 1回のメッセージの長さ上限
+// 声（ElevenLabs）：部員パスの特典。無料の人は1日 TTS_TRIAL 回だけお試し
+const TTS_PASS = 100;       // 部員パス：1日100回
+const TTS_MAX_CHARS = 200;  // 1回に読み上げる長さ上限
+const TTS_MODEL = "eleven_flash_v2_5";
+// 基本の6人の声（ElevenLabsの声ID）。KVの "voices" に {"1":"声ID",…,"default":"声ID"} を入れると差し替わる
+const VOICES = {
+  1: "pFZP5JQG7iQjIQuC4Bku", // スイ
+  2: "Xb7hH8MSUJpSbSDYk0k2", // アメリア
+  3: "XrExE9yKIg1WjnnlVkGX", // ロゼ
+  4: "cgSgspJ2msm6clMCkdW9", // トラナ
+  5: "FGY2WhTYpPnrIDTdsKH5", // ルチカ
+  6: "EXAVITQu4vr4xnSDxMaL"  // ルリ
+};
+const VOICE_POOL = Object.values(VOICES);
 const BY_NO = new Map(PERSONAS.map(p => [p.n, p]));
 
 const COMMON_RULES = `あなたは「いしけん！〜天然石研究部〜」の登場人物として、アプリの利用者とLINEのような短いチャットをします。
@@ -138,6 +152,45 @@ async function chat(env, body) {
   return json({ reply, status: { ...st, used, left: Math.max(0, st.limit - used), oshi: st.oshi || (st.pass ? null : p.n) } });
 }
 
+function speakable(t) {
+  return String(t || "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[（(][^）)]*[）)]/g, "")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
+    .replace(/\s+/g, " ").trim().slice(0, TTS_MAX_CHARS);
+}
+
+async function voiceOf(env, n) {
+  let over = {};
+  try { over = JSON.parse((await env.KV.get("voices")) || "{}"); } catch {}
+  return over[n] || VOICES[n] || over.default || VOICE_POOL[n % VOICE_POOL.length];
+}
+
+async function tts(env, body) {
+  const { userId, charNo, text } = body || {};
+  if (typeof userId !== "string" || userId.length < 8 || userId.length > 64) return json({ error: "bad_user" }, 400);
+  const p = BY_NO.get(Number(charNo));
+  if (!p) return json({ error: "bad_char" }, 400);
+  const say = speakable(text);
+  if (!say) return json({ error: "bad_text" }, 400);
+  if (!env.ELEVENLABS_API_KEY) return json({ error: "tts_not_ready" }, 503);
+
+  const pass = (await env.KV.get(`pass:${userId}`)) === "1";
+  const limit = pass ? TTS_PASS : Number(env.TTS_TRIAL || 0);
+  const key = `tts:${userId}:${jstDay()}`;
+  const used = Number((await env.KV.get(key)) || 0);
+  if (used >= limit) return json({ error: pass ? "tts_limit" : "pass_required", reason: "voice", left: 0 }, pass ? 429 : 402);
+
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${await voiceOf(env, p.n)}?output_format=mp3_44100_64`, {
+    method: "POST",
+    headers: { "xi-api-key": env.ELEVENLABS_API_KEY, "content-type": "application/json", accept: "audio/mpeg" },
+    body: JSON.stringify({ text: say, model_id: env.ELEVEN_MODEL || TTS_MODEL, language_code: "ja", voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+  });
+  if (!res.ok) return json({ error: "tts_error", code: res.status }, 502);
+  await env.KV.put(key, String(used + 1), { expirationTtl: 60 * 60 * 48 });
+  return new Response(res.body, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "access-control-expose-headers": "x-tts-left", "x-tts-left": String(limit - used - 1) } });
+}
+
 // 部員パスの購入・解約を受け取る（RevenueCat の Webhook）
 async function webhook(env, req) {
   if (req.headers.get("authorization") !== `Bearer ${env.WEBHOOK_SECRET}`) return json({ error: "unauthorized" }, 401);
@@ -166,6 +219,7 @@ export default {
     try {
       if (req.method === "POST" && url.pathname === "/chat") return await chat(env, await req.json());
       if (req.method === "GET" && url.pathname === "/status") return json(await status(env, url.searchParams.get("userId") || ""));
+      if (req.method === "POST" && url.pathname === "/tts") return await tts(env, await req.json());
       if (req.method === "POST" && url.pathname === "/report") return await report(env, await req.json());
       if (req.method === "POST" && url.pathname === "/webhook/revenuecat") return await webhook(env, req);
       if (url.pathname === "/health") return json({ ok: true, name: "ishiken-talk" });
@@ -176,4 +230,4 @@ export default {
   }
 };
 
-export { personaText, userText, COMMON_RULES };
+export { personaText, userText, COMMON_RULES, speakable };

@@ -167,6 +167,35 @@ function useVoiceInput(onText) {
   return { can: !!SR, on, start, stop };
 }
 
+// キャラの声（部員パスの特典。無料は1日3回お試し）。いまはWeb版で再生、アプリ版は次の段階で
+const CAN_SPEAK = Platform.OS === "web" && typeof window !== "undefined" && typeof window.Audio !== "undefined";
+function useSpeaker(userId, charNo, setInfo) {
+  const [playing, setPlaying] = useState(-1);
+  const audio = useRef(null);
+  const speak = async (i, text) => {
+    if (!API_URL || !CAN_SPEAK) return;
+    try { audio.current && audio.current.pause(); } catch {}
+    if (playing === i) { setPlaying(-1); return; }
+    setPlaying(i);
+    try {
+      const r = await fetch(API_URL + "/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId, charNo, text }) });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        setInfo(e.error === "pass_required" ? "声のお試しは1日3回まで。部員パスなら毎日たっぷり聞けます。"
+          : e.error === "tts_limit" ? "今日の声はここまで。また明日聞いてね！"
+          : e.error === "tts_not_ready" ? "声はただいま準備中です。もう少し待っててね。"
+          : "声をうまく出せませんでした。少し待ってからもう一度押してください。");
+        setPlaying(-1); return;
+      }
+      const url = URL.createObjectURL(await r.blob());
+      const a = new window.Audio(url); audio.current = a;
+      a.onended = () => { setPlaying(-1); URL.revokeObjectURL(url); };
+      await a.play();
+    } catch { setPlaying(-1); }
+  };
+  return { can: CAN_SPEAK && !!API_URL, playing, speak };
+}
+
 function Chat({ userId, user, char: c, status, setStatus, onBack }) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
@@ -174,6 +203,7 @@ function Chat({ userId, user, char: c, status, setStatus, onBack }) {
   const [info, setInfo] = useState("");
   const listRef = useRef(null);
   const key = `talk:${c.n}`;
+  const speaker = useSpeaker(userId, c.n, setInfo);
   const voice = useVoiceInput(t => setText(prev => (prev ? prev + " " : "") + t));
 
   useEffect(() => { (async () => setMsgs(await store.get(key, [{ role: "assistant", content: `${c.name}です。来てくれてありがとう！` }])))(); }, [c.n]);
@@ -202,11 +232,12 @@ function Chat({ userId, user, char: c, status, setStatus, onBack }) {
       <Header title={c.name} onBack={onBack} />
       <Text style={s.aiNote}>AIが演じる{c.name}と話しています · 残り {status.left}/{status.limit} 回</Text>
       <FlatList ref={listRef} data={msgs} keyExtractor={(_, i) => String(i)} contentContainerStyle={{ padding: 12 }}
-        renderItem={({ item: m }) => m.role === "user"
+        renderItem={({ item: m, index: i }) => m.role === "user"
           ? <View style={[s.bubble, s.me]}><Text style={s.meTx}>{m.content}</Text></View>
           : <Pressable onLongPress={() => report(m)} style={s.row}>
               <Image source={{ uri: face(c) }} style={s.avatar} />
               <View style={[s.bubble, s.her, { borderColor: colorOf(c) }]}><Text style={s.herTx}>{m.content}</Text></View>
+              {speaker.can ? <Pressable onPress={() => speaker.speak(i, m.content)} style={s.spk} accessibilityLabel={speaker.playing === i ? "声を止める" : `${c.name}の声で聞く`}><Text style={s.spkTx}>{speaker.playing === i ? "■" : "🔈"}</Text></Pressable> : null}
             </Pressable>} />
       {busy ? <Text style={s.typing}>{c.name}が入力中…</Text> : null}
       {info ? <Text style={s.notice}>{info}</Text> : null}
@@ -221,6 +252,8 @@ function Chat({ userId, user, char: c, status, setStatus, onBack }) {
 }
 
 const s = StyleSheet.create({
+  spk: { alignSelf: "flex-end", marginLeft: 6, width: 32, height: 32, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: "#e5dcef", alignItems: "center", justifyContent: "center" },
+  spkTx: { fontSize: 15 },
   wrap: { flex: 1, backgroundColor: C.bg },
   pad: { padding: 16, paddingBottom: 40 },
   logo: { fontSize: 34, fontWeight: "800", color: C.pri, textAlign: "center", marginTop: 8 },
