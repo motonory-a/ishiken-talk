@@ -118,7 +118,7 @@ async function chat(env, body) {
     headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 300,
+      max_tokens: 1500,
       system: [
         { type: "text", text: COMMON_RULES, cache_control: { type: "ephemeral" } },
         { type: "text", text: personaText(p), cache_control: { type: "ephemeral" } },
@@ -130,7 +130,7 @@ async function chat(env, body) {
   if (!res.ok) return json({ error: "ai_error", code: res.status }, 502);
   const data = await res.json();
   let reply = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
-  if (!reply) return json({ error: "ai_empty" }, 502);
+  if (!reply) return json({ error: "ai_empty", stop: data.stop_reason, kinds: (data.content || []).map(b => b.type), usage: data.usage }, 502);
   if (CRISIS.test(hist.at(-1).content) && !reply.includes("mhlw.go.jp")) reply += `\n\n${CRISIS_NOTE}`;
 
   const used = st.used + 1;
