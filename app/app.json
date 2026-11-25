@@ -21,6 +21,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "owner": "ryuride",
+    "extra": {
+      "eas": {
+        "projectId": "5f414ec5-cc2d-47b2-b933-6143b3a60483"
+      }
     }
   }
 }
