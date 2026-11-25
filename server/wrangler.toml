@@ -10,3 +10,7 @@ id = "ac7dc379fbe94c2498a58925fae5ffed"
 # 秘密の値はファイルに書かず、次のコマンドで登録する（アッキーが実行）
 #   npx wrangler secret put ANTHROPIC_API_KEY
 #   npx wrangler secret put WEBHOOK_SECRET
+
+# アプリのWeb版（iPhoneのSafariで試す用）。ファイルに無いパスは上の中継サーバーが受け取る
+[assets]
+directory = "./public"

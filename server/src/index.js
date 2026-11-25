@@ -168,7 +168,7 @@ export default {
       if (req.method === "GET" && url.pathname === "/status") return json(await status(env, url.searchParams.get("userId") || ""));
       if (req.method === "POST" && url.pathname === "/report") return await report(env, await req.json());
       if (req.method === "POST" && url.pathname === "/webhook/revenuecat") return await webhook(env, req);
-      if (url.pathname === "/") return json({ ok: true, name: "ishiken-talk" });
+      if (url.pathname === "/health") return json({ ok: true, name: "ishiken-talk" });
       return json({ error: "not_found" }, 404);
     } catch (e) {
       return json({ error: "server_error" }, 500);
