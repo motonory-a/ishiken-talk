@@ -14,14 +14,22 @@ const TTS_MAX_CHARS = 200;  // 1回に読み上げる長さ上限
 const TTS_MODEL = "eleven_flash_v2_5";
 // 基本の6人の声（ElevenLabsの声ID）。KVの "voices" に {"1":"声ID",…,"default":"声ID"} を入れると差し替わる
 const VOICES = {
-  1: "pFZP5JQG7iQjIQuC4Bku", // スイ
-  2: "Xb7hH8MSUJpSbSDYk0k2", // アメリア
-  3: "XrExE9yKIg1WjnnlVkGX", // ロゼ
-  4: "cgSgspJ2msm6clMCkdW9", // トラナ
-  5: "FGY2WhTYpPnrIDTdsKH5", // ルチカ
-  6: "EXAVITQu4vr4xnSDxMaL"  // ルリ
+  1: "lhTvHflPVOqgSWyuWQry", // スイ：Hina（かわいく明るい）
+  2: "ngvNHfiCrXLPAHcTrZK1", // アメリア：Aki（低く落ち着いた）
+  3: "hMK7c1GPJmptCzI4bQIu", // ロゼ：Sameno（甘くやわらかい）
+  4: "oAlEJuW30knHWhA6cF0e", // トラナ：itsuki（ボーイッシュ）
+  5: "B8gJV1IhpuegLxdpXFOE", // ルチカ：Kuon（明るく華やか）
+  6: "uYwU1hsbnP5viqq9qhob"  // ルリ：Irohauta（高めで弾む）
 };
-const VOICE_POOL = Object.values(VOICES);
+// ほかの363人は、日本人の若い女性の声12種から番号で割り当てる
+const VOICE_POOL = [...Object.values(VOICES),
+  "6awt6FKyZGV0HyQEwisX", // Suzu
+  "JTlYtJrcTzPC71hMLOxo", // Yuki
+  "fUjY9K2nAIwlALOwSiwc", // Yui
+  "OSwaPSNdfituxkWcjlkR", // Kano
+  "8kgj5469z1URcH4MB2G4", // Sakuya
+  "gARvXPexe5VF3cKZBian"  // Mitsuki
+];
 const BY_NO = new Map(PERSONAS.map(p => [p.n, p]));
 
 const COMMON_RULES = `あなたは「いしけん！〜天然石研究部〜」の登場人物として、アプリの利用者とLINEのような短いチャットをします。

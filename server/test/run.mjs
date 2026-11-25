@@ -38,7 +38,7 @@ check("呼び方なしは「先輩」", userText({}).includes("「先輩」"));
 const tcall = async b => { const r = await worker.fetch(new Request("https://x/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }), env); return [r.status, r.headers.get("content-type"), r.headers.get("x-tts-left")]; };
 let t = await tcall({ userId: "u-voice-0001", charNo: 3, text: "おかえり！(笑) 今日はどうだった？😊" });
 check("声：無料でもお試しで音声が返る", t[0] === 200 && t[1] === "audio/mpeg" && t[2] === "2");
-check("声：ロゼの声で、絵文字やかっこは読まない", lastUrl.includes("XrExE9yKIg1WjnnlVkGX") && lastBody.text === "おかえり！ 今日はどうだった？");
+check("声：ロゼの声で、絵文字やかっこは読まない", lastUrl.includes("hMK7c1GPJmptCzI4bQIu") && lastBody.text === "おかえり！ 今日はどうだった？");
 await tcall({ userId: "u-voice-0001", charNo: 3, text: "a" }); await tcall({ userId: "u-voice-0001", charNo: 3, text: "a" });
 t = await tcall({ userId: "u-voice-0001", charNo: 3, text: "a" });
 check("声：お試し4回目は部員パスの案内", t[0] === 402);
