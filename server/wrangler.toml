@@ -5,7 +5,7 @@ compatibility_date = "2026-11-01"
 # 会話回数・部員パス・推しの記録を置く場所（作成後に id を書き込む）
 [[kv_namespaces]]
 binding = "KV"
-id = "ここにKVのIDを入れる"
+id = "ac7dc379fbe94c2498a58925fae5ffed"
 
 # 秘密の値はファイルに書かず、次のコマンドで登録する（アッキーが実行）
 #   npx wrangler secret put ANTHROPIC_API_KEY

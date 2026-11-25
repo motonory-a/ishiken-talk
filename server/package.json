@@ -1,0 +1,6 @@
+{
+  "name": "ishiken-talk-server",
+  "private": true,
+  "scripts": { "deploy": "wrangler deploy", "test": "node test/run.mjs" },
+  "devDependencies": { "wrangler": "^4" }
+}
