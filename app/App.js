@@ -1,4 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import Purchases from "react-native-purchases";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -39,6 +40,38 @@ async function send(userId, charNo, messages, user) {
   return { ok: true, reply: `（お試しモード）${callOf(user)}、${c.name}だよ。サーバーにつなぐと、ここに本物の返事が届くよ。`, status: { left: 10 - demo.used, limit: 10, pass: false, oshi: demo.oshi } };
 }
 
+// 部員パス（RevenueCat）。公開キーはアプリに入れてよいキー（goog_… / appl_…）。秘密キーはサーバーだけが持つ
+const RC_KEYS = { android: "", ios: "" };
+const RC_KEY = RC_KEYS[Platform.OS] || "";
+const MANAGE_URL = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
+function usePass(userId, setStatus) {
+  const [pkg, setPkg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const can = !!RC_KEY && Platform.OS !== "web";
+  useEffect(() => { if (!can || !userId) return; (async () => {
+    try {
+      Purchases.configure({ apiKey: RC_KEY, appUserID: userId });
+      const o = await Purchases.getOfferings();
+      setPkg(o.current?.monthly || o.current?.availablePackages?.[0] || null);
+    } catch {}
+  })(); }, [userId]);
+  const sync = async () => { try { const r = await api("/sync", { userId }); if (r.status) setStatus(r.status); return r.status?.pass; } catch { return false; } };
+  const buy = async () => {
+    if (!pkg || busy) return; setBusy(true); setMsg("");
+    try { await Purchases.purchasePackage(pkg); setMsg((await sync()) ? "部員パスが有効になりました。ようこそ！" : "購入を確認しています。少し待ってから開き直してください。"); }
+    catch (e) { if (!e?.userCancelled) setMsg("購入できませんでした。時間をおいてもう一度お試しください。"); }
+    setBusy(false);
+  };
+  const restore = async () => {
+    if (busy) return; setBusy(true); setMsg("");
+    try { await Purchases.restorePurchases(); setMsg((await sync()) ? "部員パスを復元しました。" : "復元できる部員パスが見つかりませんでした。"); }
+    catch { setMsg("復元できませんでした。時間をおいてもう一度お試しください。"); }
+    setBusy(false);
+  };
+  return { can, price: pkg?.product?.priceString || "", ready: !!pkg, busy, msg, buy, restore };
+}
+
 export default function App() {
   const [userId, setUserId] = useState(null);
   const [screen, setScreen] = useState("home");
@@ -59,11 +92,12 @@ export default function App() {
   const saveUser = async u => { setUser(u); await store.set("user", u); };
   const choose = async n => { setOshi(n); await store.set("oshi", n); setTalk(n); setScreen("chat"); };
 
+  const pass = usePass(userId, setStatus);
   if (!userId) return <SafeAreaView style={s.wrap} />;
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar style="dark" />
-      {screen === "home" && <Home userId={userId} oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
+      {screen === "home" && <Home userId={userId} pass={pass} oshi={oshi} status={status} user={user} onUser={saveUser} onTalk={n => { setTalk(n); setScreen("chat"); }} onPick={() => setScreen("pick")} />}
       {screen === "pick" && <Pick status={status} oshi={oshi} onBack={() => setScreen("home")} onChoose={choose} />}
       {screen === "chat" && talk && <Chat userId={userId} user={user} char={BY.get(talk)} status={status} setStatus={setStatus} onBack={() => setScreen("home")} />}
     </SafeAreaView>
@@ -80,7 +114,7 @@ function Header({ title, onBack }) {
   );
 }
 
-function Home({ userId, oshi, status, user, onUser, onTalk, onPick }) {
+function Home({ userId, pass, oshi, status, user, onUser, onTalk, onPick }) {
   const c = oshi && BY.get(oshi);
   return (
     <ScrollView contentContainerStyle={s.pad}>
@@ -112,10 +146,25 @@ function Home({ userId, oshi, status, user, onUser, onTalk, onPick }) {
         <Text style={s.left}>部員から「{callOf(user)}」と呼ばれます</Text>
       </View>
       <View style={s.card}>
-        <Text style={s.kicker}>部員パス（月480円）</Text>
-        <Text style={s.body}>369人の誰とでも、1日300回まで話せます。キャラの声も毎日たっぷり聞けます。</Text>
-        <Pressable style={[s.btn, s.btnGhost]} onPress={onPick}><Text style={[s.btnTx, { color: C.pri }]}>369人を見る</Text></Pressable>
-        <Text style={s.note}>お支払いはストア公開のときにつなぎます。</Text>
+        <Text style={s.kicker}>部員パス{pass.price ? `（${pass.price}／月）` : "（月額）"}</Text>
+        {status.pass ? (<>
+          <Text style={s.body}>部員パスを利用中です。369人の誰とでも話せて、声もたっぷり聞けます。</Text>
+          <Pressable style={[s.btn, s.btnGhost]} onPress={onPick}><Text style={[s.btnTx, { color: C.pri }]}>369人を見る</Text></Pressable>
+          {pass.can ? <Pressable onPress={() => Linking.openURL(MANAGE_URL)}><Text style={s.linkTx}>定期購入の確認・解約</Text></Pressable> : null}
+        </>) : (<>
+          <Text style={s.body}>369人の誰とでも、1日300回まで話せます。キャラの声も毎日たっぷり聞けます。</Text>
+          {pass.can ? (<>
+            <Pressable style={[s.btn, { backgroundColor: C.pink }, (!pass.ready || pass.busy) && { opacity: 0.5 }]} onPress={pass.buy} disabled={!pass.ready || pass.busy}>
+              <Text style={s.btnTx}>{pass.busy ? "手続き中…" : pass.ready ? "部員パスに入る" : "準備中…"}</Text>
+            </Pressable>
+            <Pressable onPress={pass.restore}><Text style={s.linkTx}>購入を復元する</Text></Pressable>
+            <Text style={s.note}>1か月ごとに自動で更新されます。解約は{Platform.OS === "ios" ? "App Store" : "Google Play"}の「定期購入」からいつでもできます。次の更新日の24時間前までに解約すると、次の月の料金はかかりません。</Text>
+          </>) : (
+            <Text style={s.note}>{Platform.OS === "web" ? "部員パスは、スマホのアプリ版で購入できます。" : "部員パスはまもなく購入できるようになります。"}</Text>
+          )}
+          <Pressable style={[s.btn, s.btnGhost]} onPress={onPick}><Text style={[s.btnTx, { color: C.pri }]}>369人を見る</Text></Pressable>
+        </>)}
+        {pass.msg ? <Text style={s.notice}>{pass.msg}</Text> : null}
       </View>
       <View style={s.card}>
         <Text style={s.kicker}>推しのグッズ・ブレスレット</Text>
@@ -277,6 +326,7 @@ const s = StyleSheet.create({
   btnTx: { color: "#fff", fontWeight: "800", fontSize: 16 },
   left: { textAlign: "center", color: C.sub, marginTop: 8 },
   note: { color: C.sub, fontSize: 12, textAlign: "center", marginTop: 10 },
+  linkTx: { color: C.pri, fontSize: 13, textAlign: "center", textDecorationLine: "underline", marginTop: 10 },
   legal: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 18 },
   legalTx: { color: C.pri, fontSize: 12, textDecorationLine: "underline" },
   idTx: { color: C.sub, fontSize: 11, textAlign: "center", marginTop: 8 },

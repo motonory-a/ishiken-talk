@@ -231,6 +231,20 @@ async function devTools(env, url) {
   return json({ error: "not_found" }, 404);
 }
 
+// 部員パスの状態を RevenueCat に直接確かめる（購入・復元の直後にアプリが呼ぶ）
+const ENTITLEMENT = "pass";
+async function sync(env, body) {
+  const { userId } = body || {};
+  if (typeof userId !== "string" || userId.length < 8 || userId.length > 64) return json({ error: "bad_user" }, 400);
+  if (!env.REVENUECAT_SECRET) return json({ error: "sync_not_ready" }, 503);
+  const r = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, { headers: { authorization: `Bearer ${env.REVENUECAT_SECRET}` } });
+  if (!r.ok) return json({ error: "sync_error", code: r.status }, 502);
+  const ent = ((await r.json()).subscriber || {}).entitlements?.[ENTITLEMENT];
+  const active = !!ent && (!ent.expires_date || Date.parse(ent.expires_date) > Date.now());
+  if (active) await env.KV.put(`pass:${userId}`, "1"); else await env.KV.delete(`pass:${userId}`);
+  return json({ ok: true, status: await status(env, userId) });
+}
+
 // 部員パスの購入・解約を受け取る（RevenueCat の Webhook）
 async function webhook(env, req) {
   if (req.headers.get("authorization") !== `Bearer ${env.WEBHOOK_SECRET}`) return json({ error: "unauthorized" }, 401);
@@ -260,6 +274,7 @@ export default {
       if (req.method === "POST" && url.pathname === "/chat") return await chat(env, await req.json());
       if (req.method === "GET" && url.pathname === "/status") return json(await status(env, url.searchParams.get("userId") || ""));
       if (req.method === "POST" && url.pathname === "/tts") return await tts(env, await req.json());
+      if (req.method === "POST" && url.pathname === "/sync") return await sync(env, await req.json());
       if (req.method === "POST" && url.pathname === "/report") return await report(env, await req.json());
       if (req.method === "POST" && url.pathname === "/webhook/revenuecat") return await webhook(env, req);
       if (req.method === "GET" && /^\/a\/[0-9a-f]{32}\.mp3$/.test(url.pathname)) {
