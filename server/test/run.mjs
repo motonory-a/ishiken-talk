@@ -5,7 +5,7 @@ fs.writeFileSync(new URL("./_w.mjs", import.meta.url), 'import fs from "fs";\n' 
 const { default: worker, personaText, userText, speakable } = await import("./_w.mjs");
 const store = new Map();
 const env = { ANTHROPIC_API_KEY: "test", WEBHOOK_SECRET: "s3", ELEVENLABS_API_KEY: "el", TTS_TRIAL: "3", KV: {
-  get: async k => store.get(k) ?? null, put: async (k, v) => store.set(k, v), delete: async k => store.delete(k) } };
+  get: async (k, type) => store.get(k) ?? null, put: async (k, v) => store.set(k, v), delete: async k => store.delete(k) } };
 let lastBody;
 let lastUrl;
 globalThis.fetch = async (url, opt) => { lastUrl = url; if (String(url).includes("elevenlabs")) { lastBody = JSON.parse(opt.body); return new Response(new Uint8Array([1,2,3]), { status: 200 }); } lastBody = JSON.parse(opt.body); return new Response(JSON.stringify({ content: [{ type: "text", text: "うん、聞かせて！" }] }), { status: 200 }); };
@@ -44,6 +44,10 @@ t = await tcall({ userId: "u-voice-0001", charNo: 3, text: "a" });
 check("声：お試し4回目は部員パスの案内", t[0] === 402);
 t = await tcall({ userId: U, charNo: 250, text: "やあ" });
 check("声：部員パスなら誰の声でも使える", t[0] === 200);
+const rr = await worker.fetch(new Request("https://x/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: "u-voice-0002", charNo: 1, text: "やあ", as: "url" }) }), env);
+const jj = await rr.json();
+const ar = await worker.fetch(new Request("https://x" + jj.url), env);
+check("声：アプリ版は音声の置き場所を返し、そこから聞ける", rr.status === 200 && /^\/a\/[0-9a-f]{32}\.mp3$/.test(jj.url) && jj.left === 2 && ar.status === 200 && ar.headers.get("content-type") === "audio/mpeg");
 check("声：長すぎる文は200文字で切る", speakable("あ".repeat(500)).length === 200);
 console.log(ok ? "ALL PASS" : "FAILED");
 console.log("---- 例：ロゼの設定 ----\n" + personaText(JSON.parse(fs.readFileSync(new URL("../src/personas.json", import.meta.url))).find(p => p.n === 3)));

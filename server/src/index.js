@@ -196,7 +196,14 @@ async function tts(env, body) {
   });
   if (!res.ok) return json({ error: "tts_error", code: res.status }, 502);
   await env.KV.put(key, String(used + 1), { expirationTtl: 60 * 60 * 48 });
-  return new Response(res.body, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "access-control-expose-headers": "x-tts-left", "x-tts-left": String(limit - used - 1) } });
+  const left = limit - used - 1;
+  // アプリ版：音声を10分だけ置いて、その場所を返す（Web版・iPhone・Androidで同じ再生方法にする）
+  if (body.as === "url") {
+    const id = crypto.randomUUID().replace(/-/g, "");
+    await env.KV.put(`audio:${id}`, await res.arrayBuffer(), { expirationTtl: 600 });
+    return json({ url: `/a/${id}.mp3`, left });
+  }
+  return new Response(res.body, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "access-control-expose-headers": "x-tts-left", "x-tts-left": String(left) } });
 }
 
 // 声選び用の一時的な窓口（DEV_TOOLS="1" のときだけ。声が決まったら消す）
@@ -255,6 +262,10 @@ export default {
       if (req.method === "POST" && url.pathname === "/tts") return await tts(env, await req.json());
       if (req.method === "POST" && url.pathname === "/report") return await report(env, await req.json());
       if (req.method === "POST" && url.pathname === "/webhook/revenuecat") return await webhook(env, req);
+      if (req.method === "GET" && /^\/a\/[0-9a-f]{32}\.mp3$/.test(url.pathname)) {
+        const buf = await env.KV.get(`audio:${url.pathname.slice(3, 35)}`, "arrayBuffer");
+        return buf ? new Response(buf, { headers: { "content-type": "audio/mpeg", "access-control-allow-origin": "*", "cache-control": "private, max-age=600" } }) : json({ error: "gone" }, 404);
+      }
       if (url.pathname.startsWith("/dev/")) return await devTools(env, url);
       if (url.pathname === "/health") return json({ ok: true, name: "ishiken-talk" });
       return json({ error: "not_found" }, 404);

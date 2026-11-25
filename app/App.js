@@ -1,3 +1,4 @@
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -167,33 +168,35 @@ function useVoiceInput(onText) {
   return { can: !!SR, on, start, stop };
 }
 
-// キャラの声（部員パスの特典。無料は1日3回お試し）。いまはWeb版で再生、アプリ版は次の段階で
-const CAN_SPEAK = Platform.OS === "web" && typeof window !== "undefined" && typeof window.Audio !== "undefined";
+// キャラの声（部員パスの特典。無料は1日3回お試し）。Web版・iPhone・Androidとも expo-audio で再生
+let audioModeSet = false;
 function useSpeaker(userId, charNo, setInfo) {
   const [playing, setPlaying] = useState(-1);
-  const audio = useRef(null);
+  const player = useRef(null);
+  const stopNow = () => { try { player.current && player.current.remove(); } catch {} player.current = null; };
+  useEffect(() => stopNow, []);
   const speak = async (i, text) => {
-    if (!API_URL || !CAN_SPEAK) return;
-    try { audio.current && audio.current.pause(); } catch {}
-    if (playing === i) { setPlaying(-1); return; }
+    if (!API_URL) return;
+    const wasMe = playing === i;
+    stopNow(); setPlaying(-1);
+    if (wasMe) return;
     setPlaying(i);
     try {
-      const r = await fetch(API_URL + "/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId, charNo, text }) });
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        setInfo(e.error === "pass_required" ? "声のお試しは1日3回まで。部員パスなら毎日たっぷり聞けます。"
-          : e.error === "tts_limit" ? "今日の声はここまで。また明日聞いてね！"
-          : e.error === "tts_not_ready" ? "声はただいま準備中です。もう少し待っててね。"
+      if (!audioModeSet) { audioModeSet = true; try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {} }
+      const r = await api("/tts", { userId, charNo, text, as: "url" });
+      if (!r.url) {
+        setInfo(r.error === "pass_required" ? "声のお試しは1日3回まで。部員パスなら毎日たっぷり聞けます。"
+          : r.error === "tts_limit" ? "今日の声はここまで。また明日聞いてね！"
+          : r.error === "tts_not_ready" ? "声はただいま準備中です。もう少し待っててね。"
           : "声をうまく出せませんでした。少し待ってからもう一度押してください。");
         setPlaying(-1); return;
       }
-      const url = URL.createObjectURL(await r.blob());
-      const a = new window.Audio(url); audio.current = a;
-      a.onended = () => { setPlaying(-1); URL.revokeObjectURL(url); };
-      await a.play();
+      const p = createAudioPlayer(API_URL + r.url); player.current = p;
+      p.addListener("playbackStatusUpdate", st => { if (st.didJustFinish) { setPlaying(-1); stopNow(); } });
+      p.play();
     } catch { setPlaying(-1); }
   };
-  return { can: CAN_SPEAK && !!API_URL, playing, speak };
+  return { can: !!API_URL, playing, speak };
 }
 
 function Chat({ userId, user, char: c, status, setStatus, onBack }) {
