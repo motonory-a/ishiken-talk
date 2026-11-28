@@ -11,6 +11,7 @@ id = "ac7dc379fbe94c2498a58925fae5ffed"
 #   npx wrangler secret put ANTHROPIC_API_KEY
 #   npx wrangler secret put WEBHOOK_SECRET
 #   npx wrangler secret put ELEVENLABS_API_KEY   （キャラの声）
+#   npx wrangler secret put REVIEW_CODE          （Google審査用の合言葉。12文字以内。呼び名に入れると部員パス扱い）
 #   npx wrangler secret put REVENUECAT_SECRET    （部員パスの確認。RevenueCat の秘密キー sk_...）
 
 # アプリのWeb版（iPhoneのSafariで試す用）。ファイルに無いパスは上の中継サーバーが受け取る

@@ -121,6 +121,10 @@ async function chat(env, body) {
   if (!p) return json({ error: "bad_char" }, 400);
   if (!Array.isArray(messages) || !messages.length) return json({ error: "bad_messages" }, 400);
 
+  // 審査用：呼び名に審査用コード（秘密の値 REVIEW_CODE）を入れると、30日間 部員パス扱いにする
+  if (env.REVIEW_CODE && user && typeof user.name === "string" && user.name.trim() === env.REVIEW_CODE)
+    await env.KV.put(`pass:${userId}`, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+
   const st = await status(env, userId);
   // 無料の人は「最初に選んだ推し1人」とだけ話せる
   if (!st.pass) {
